@@ -1,0 +1,20 @@
+# Node
+node_modules
+npm-debug.log*
+pnpm-lock.yaml
+
+# Env
+.env
+.env.*
+
+# Build
+dist
+.next
+out
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.volume
