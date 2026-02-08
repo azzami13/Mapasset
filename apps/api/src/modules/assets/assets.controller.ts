@@ -1,13 +1,14 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import {
-  IsArray,
-  IsNumber,
-  IsOptional,
-  IsString,
-  MinLength,
-  ValidateNested,
-} from 'class-validator';
-import { Type } from 'class-transformer';
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import { IsArray, IsNumber, IsOptional, IsString, MinLength } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { AssetsService } from './assets.service';
 
@@ -32,17 +33,6 @@ class CreatePointDto {
   @IsOptional()
   @IsString()
   alamat_lokasi?: string;
-}
-
-/**
- * DTO untuk satu koordinat [lng, lat]
- */
-class CoordinateDto {
-  @IsNumber()
-  lng: number;
-
-  @IsNumber()
-  lat: number;
 }
 
 /**
@@ -71,6 +61,60 @@ class CreatePolygonDto {
   alamat_lokasi?: string;
 }
 
+/**
+ * DTO untuk UPDATE asset (atribut katalog / master data)
+ * NOTE: field-field ini harus ADA di entity + database supaya kesimpan.
+ * Kalau belum ada kolomnya, nanti kita rapihin entity + migration.
+ */
+class UpdateAssetDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  kode_aset?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  nama_aset?: string;
+
+  @IsOptional()
+  @IsNumber()
+  luas_m2?: number;
+
+  @IsOptional()
+  @IsNumber()
+  nilai_aset?: number;
+
+  @IsOptional()
+  @IsNumber()
+  tahun_perolehan?: number;
+
+  @IsOptional()
+  @IsString()
+  status_hukum?: string;
+
+  @IsOptional()
+  @IsString()
+  status_penggunaan?: string;
+
+  @IsOptional()
+  @IsString()
+  alamat_lokasi?: string;
+
+  // optional (kalau belum ada kolom, boleh kamu hapus dulu)
+  @IsOptional()
+  @IsString()
+  jenis_aset?: string;
+
+  @IsOptional()
+  @IsString()
+  skpd?: string;
+
+  @IsOptional()
+  @IsString()
+  keterangan?: string;
+}
+
 @UseGuards(JwtAuthGuard)
 @Controller('assets')
 export class AssetsController {
@@ -84,6 +128,24 @@ export class AssetsController {
   @Get('geojson')
   geojson() {
     return this.assets.geojson();
+  }
+
+  // DETAIL (klik row -> tampil detail)
+  @Get(':id')
+  detail(@Param('id') id: string) {
+    return this.assets.detail(Number(id));
+  }
+
+  // UPDATE (edit data katalog)
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateAssetDto) {
+    return this.assets.update(Number(id), dto);
+  }
+
+  // DELETE (hapus aset)
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.assets.remove(Number(id));
   }
 
   @Post('point')

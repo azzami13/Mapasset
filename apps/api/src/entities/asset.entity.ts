@@ -13,10 +13,10 @@ export class Asset {
   nama_aset: string;
 
   @Column({ type: 'numeric', precision: 12, scale: 2, nullable: true })
-  luas_m2?: string;
+  luas_m2?: number;
 
   @Column({ type: 'numeric', precision: 15, scale: 2, nullable: true })
-  nilai_aset?: string;
+  nilai_aset?: number;
 
   @Column({ type: 'int', nullable: true })
   tahun_perolehan?: number;

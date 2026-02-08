@@ -1,85 +1,53 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiFetch, getToken, setToken } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [username, setUsername] = useState("admin");
+  const [password, setPassword] = useState("admin123");
+  const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  // ✅ redirect HARUS di useEffect, bukan di render
+  useEffect(() => {
+    if (getToken()) router.replace("/assets");
+  }, [router]);
+
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
+    setErr(null);
     setLoading(true);
 
     try {
-      const apiBase =
-        process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+      const data = await apiFetch<{ access_token: string }>(
+        "/auth/login",
+        {
+          method: "POST",
+          body: JSON.stringify({ username, password }),
+        },
+        { auth: false } // ✅ login tidak pakai bearer
+      );
 
-      const res = await fetch(`${apiBase}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Username atau password salah");
-      }
-
-      const data = await res.json();
-
-      // SIMPAN TOKEN
-      localStorage.setItem("access_token", data.access_token);
-
-      // Redirect ke map
-      router.push("/map");
+      setToken(data.access_token);
+      router.replace("/assets");
     } catch (e: any) {
-      setError(e.message ?? "Login gagal");
+      setErr(e?.message ?? "Login gagal");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
-    <div style={{ maxWidth: 360, margin: "80px auto" }}>
-      <h1 style={{ fontSize: 20, marginBottom: 16 }}>Login Admin</h1>
-
-      <form onSubmit={handleLogin}>
-        <input
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          style={{ width: "100%", padding: 8, marginBottom: 8 }}
-        />
-
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ width: "100%", padding: 8, marginBottom: 8 }}
-        />
-
-        {error && (
-          <div style={{ color: "crimson", marginBottom: 8 }}>{error}</div>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            width: "100%",
-            padding: 10,
-            background: "#2563eb",
-            color: "white",
-            border: "none",
-          }}
-        >
-          {loading ? "Loading..." : "Login"}
-        </button>
+    <div style={{ padding: 24 }}>
+      <h1>Login</h1>
+      <form onSubmit={onSubmit} style={{ display: "grid", gap: 10, maxWidth: 320 }}>
+        <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="username" />
+        <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="password" type="password" />
+        <button disabled={loading} type="submit">{loading ? "..." : "Login"}</button>
+        {err && <div style={{ color: "red" }}>{err}</div>}
       </form>
     </div>
   );

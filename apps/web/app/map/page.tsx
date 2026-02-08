@@ -3,45 +3,70 @@
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import type { FeatureCollection } from "geojson";
+import { apiFetch, getToken } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
-// PENTING: file harus ada di folder yang sama: app/map/AssetMap.tsx
 const AssetMap = dynamic(() => import("./AssetMap"), { ssr: false });
 
 export default function MapPage() {
+  const router = useRouter();
   const [geojson, setGeojson] = useState<FeatureCollection | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    setErr(null);
+    try {
+      const data = await apiFetch<FeatureCollection>("/assets/geojson");
+      setGeojson(data);
+    } catch (e: any) {
+      setErr(e?.message ?? "Gagal load geojson");
+      setGeojson(null);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    const run = async () => {
-      try {
-        setError(null);
-
-        const token = localStorage.getItem("access_token");
-        if (!token) {
-          setError("Token tidak ada. Login dulu ya.");
-          return;
-        }
-
-        const apiBase =
-          process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
-
-        const res = await fetch(`${apiBase}/assets/geojson`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
-
-        setGeojson((await res.json()) as FeatureCollection);
-      } catch (e: any) {
-        setError(e?.message ?? "Fetch gagal");
-      }
-    };
-
-    run();
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (error) return <div style={{ padding: 24, color: "crimson" }}>{error}</div>;
-  if (!geojson) return <div style={{ padding: 24 }}>Loading GeoJSON...</div>;
+  return (
+    <div>
+      <div style={{ padding: 12, display: "flex", gap: 10, alignItems: "center" }}>
+        <b>MapAset</b>
 
-  return <AssetMap geojson={geojson} />;
+        <button onClick={load} style={{ padding: "8px 12px", cursor: "pointer" }}>
+          Refresh
+        </button>
+
+        <button
+          onClick={() => {
+            localStorage.removeItem("token");
+            router.replace("/login");
+          }}
+          style={{ padding: "8px 12px", cursor: "pointer" }}
+        >
+          Logout
+        </button>
+      </div>
+
+      {loading && <div style={{ padding: 12 }}>Loading geojson...</div>}
+
+      {err && (
+        <div style={{ padding: 12, background: "#ffe6e6" }}>
+          {err}
+        </div>
+      )}
+
+      {geojson && <AssetMap geojson={geojson} />}
+    </div>
+  );
 }

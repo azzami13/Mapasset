@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Asset } from '../../entities/asset.entity';
@@ -11,13 +11,79 @@ export class AssetsService {
   ) {}
 
   /**
-   * List asset biasa (tanpa GeoJSON)
+   * List asset untuk katalog (ringkas)
    */
   async list() {
-    return this.repo.find({
-      order: { updated_at: 'DESC' as any },
-      take: 200,
-    });
+    const rows = await this.repo
+      .createQueryBuilder('a')
+      .select([
+        'a.id as id',
+        'a.kode_aset as kode_aset',
+        'a.nama_aset as nama_aset',
+        'a.luas_m2 as luas_m2',
+        'a.nilai_aset as nilai_aset',
+        'a.tahun_perolehan as tahun_perolehan',
+        'a.status_hukum as status_hukum',
+        'a.status_penggunaan as status_penggunaan',
+        'a.alamat_lokasi as alamat_lokasi',
+        'a.updated_at as updated_at',
+        `ST_GeometryType(a.geometry) as geometry_type`,
+      ])
+      .orderBy('a.updated_at', 'DESC')
+      .limit(200)
+      .getRawMany();
+
+    return rows.map((r) => ({
+      id: Number(r.id),
+      kode_aset: r.kode_aset,
+      nama_aset: r.nama_aset,
+      luas_m2: r.luas_m2,
+      nilai_aset: r.nilai_aset,
+      tahun_perolehan: r.tahun_perolehan,
+      status_hukum: r.status_hukum,
+      status_penggunaan: r.status_penggunaan,
+      alamat_lokasi: r.alamat_lokasi,
+      updated_at: r.updated_at,
+      geometry_type: r.geometry_type, // 'ST_Point', 'ST_Polygon', null
+    }));
+  }
+
+  /**
+   * DETAIL asset untuk klik row (tampilkan lengkap)
+   */
+  async detail(id: number) {
+    if (!id || Number.isNaN(id)) throw new BadRequestException('ID tidak valid');
+
+    const asset = await this.repo.findOne({ where: { id } as any });
+    if (!asset) throw new NotFoundException('Asset tidak ditemukan');
+
+    return asset;
+  }
+
+  /**
+   * UPDATE asset (edit data katalog)
+   */
+  async update(id: number, dto: Partial<Asset>) {
+    if (!id || Number.isNaN(id)) throw new BadRequestException('ID tidak valid');
+
+    const asset = await this.repo.findOne({ where: { id } as any });
+    if (!asset) throw new NotFoundException('Asset tidak ditemukan');
+
+    Object.assign(asset, dto);
+    return this.repo.save(asset);
+  }
+
+  /**
+   * DELETE asset
+   */
+  async remove(id: number) {
+    if (!id || Number.isNaN(id)) throw new BadRequestException('ID tidak valid');
+
+    const asset = await this.repo.findOne({ where: { id } as any });
+    if (!asset) throw new NotFoundException('Asset tidak ditemukan');
+
+    await this.repo.remove(asset);
+    return { ok: true };
   }
 
   /**
@@ -79,7 +145,7 @@ export class AssetsService {
       geometry: {
         type: 'Point',
         coordinates: [input.lng, input.lat], // GeoJSON: [lng, lat]
-      },
+      } as any,
     });
 
     return this.repo.save(asset);
@@ -87,7 +153,6 @@ export class AssetsService {
 
   /**
    * Create asset dengan geometry POLYGON
-   * coordinates = array of [lng, lat]
    */
   async createPolygon(input: {
     kode_aset: string;
@@ -96,9 +161,7 @@ export class AssetsService {
     alamat_lokasi?: string;
   }) {
     if (!input.coordinates || input.coordinates.length < 4) {
-      throw new BadRequestException(
-        'Polygon minimal memiliki 4 titik (tertutup)',
-      );
+      throw new BadRequestException('Polygon minimal memiliki 4 titik (tertutup)');
     }
 
     // pastikan polygon tertutup
@@ -117,7 +180,7 @@ export class AssetsService {
       geometry: {
         type: 'Polygon',
         coordinates: [coords], // GeoJSON Polygon = array of ring
-      },
+      } as any,
     });
 
     return this.repo.save(asset);
