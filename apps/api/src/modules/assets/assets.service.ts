@@ -44,12 +44,12 @@ export class AssetsService {
       status_penggunaan: r.status_penggunaan,
       alamat_lokasi: r.alamat_lokasi,
       updated_at: r.updated_at,
-      geometry_type: r.geometry_type, // 'ST_Point', 'ST_Polygon', null
+      geometry_type: r.geometry_type,
     }));
   }
 
   /**
-   * DETAIL asset untuk klik row (tampilkan lengkap)
+   * DETAIL asset
    */
   async detail(id: number) {
     if (!id || Number.isNaN(id)) throw new BadRequestException('ID tidak valid');
@@ -61,7 +61,7 @@ export class AssetsService {
   }
 
   /**
-   * UPDATE asset (edit data katalog)
+   * UPDATE asset
    */
   async update(id: number, dto: Partial<Asset>) {
     if (!id || Number.isNaN(id)) throw new BadRequestException('ID tidak valid');
@@ -88,7 +88,6 @@ export class AssetsService {
 
   /**
    * Ambil seluruh asset sebagai GeoJSON FeatureCollection
-   * (Point & Polygon dari PostGIS)
    */
   async geojson() {
     const rows = await this.repo
@@ -129,7 +128,7 @@ export class AssetsService {
   }
 
   /**
-   * Create asset dengan geometry POINT
+   * CREATE asset dengan POINT (SRID 4326)
    */
   async createPoint(input: {
     kode_aset: string;
@@ -142,17 +141,15 @@ export class AssetsService {
       kode_aset: input.kode_aset,
       nama_aset: input.nama_aset,
       alamat_lokasi: input.alamat_lokasi,
-      geometry: {
-        type: 'Point',
-        coordinates: [input.lng, input.lat], // GeoJSON: [lng, lat]
-      } as any,
+      geometry: () =>
+        `ST_SetSRID(ST_MakePoint(${input.lng}, ${input.lat}), 4326)`,
     });
 
     return this.repo.save(asset);
   }
 
   /**
-   * Create asset dengan geometry POLYGON
+   * CREATE asset dengan POLYGON (SRID 4326)
    */
   async createPolygon(input: {
     kode_aset: string;
@@ -164,23 +161,26 @@ export class AssetsService {
       throw new BadRequestException('Polygon minimal memiliki 4 titik (tertutup)');
     }
 
-    // pastikan polygon tertutup
     const coords = [...input.coordinates];
     const first = coords[0];
     const last = coords[coords.length - 1];
 
+    // Tutup polygon jika belum tertutup
     if (first[0] !== last[0] || first[1] !== last[1]) {
       coords.push(first);
     }
+
+    const geojsonPolygon = {
+      type: 'Polygon',
+      coordinates: [coords],
+    };
 
     const asset = this.repo.create({
       kode_aset: input.kode_aset,
       nama_aset: input.nama_aset,
       alamat_lokasi: input.alamat_lokasi,
-      geometry: {
-        type: 'Polygon',
-        coordinates: [coords], // GeoJSON Polygon = array of ring
-      } as any,
+      geometry: () =>
+        `ST_SetSRID(ST_GeomFromGeoJSON('${JSON.stringify(geojsonPolygon)}'), 4326)`,
     });
 
     return this.repo.save(asset);
